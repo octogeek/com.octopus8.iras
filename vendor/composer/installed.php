@@ -5,7 +5,7 @@
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'reference' => 'b3f4cea850ee41c12f01fc28461229b1397db0e4',
+        'reference' => 'a78ef7ba672e06bc78029e707c1364c4e82a379b',
         'name' => '__root__',
         'dev' => true,
     ),
@@ -16,7 +16,7 @@
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
-            'reference' => 'b3f4cea850ee41c12f01fc28461229b1397db0e4',
+            'reference' => 'a78ef7ba672e06bc78029e707c1364c4e82a379b',
             'dev_requirement' => false,
         ),
         'fgrosse/phpasn1' => array(
