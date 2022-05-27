@@ -16,6 +16,7 @@ use Firebase\JWT\JWT;
 
 function report_online()
 {
+	createTable();
 	echo('report');
 	global $wpdb;
     $result =  $wpdb->get_results( "SELECT * FROM civicrm_contribution WHERE 1", OBJECT );
@@ -25,6 +26,7 @@ function report_online()
 
 function report_offline($params)
 {
+	createTable();
 	global $wpdb;
     $result =  $wpdb->get_results( "SELECT cd.description FROM civicrm_domain cd WHERE cd.contact_id=1 LIMIT 1", OBJECT );
 	// var_dump($wpdb->prefix);
@@ -35,15 +37,25 @@ function report_offline($params)
 	array_push($csvData, $dataHead);
 	
 	// $result =  $wpdb->get_results( "SELECT cc.id, cc.external_identifier, cc.sort_name FROM civicrm_contact cc WHERE cc.external_identifier is not null", OBJECT );
-	$result =  $wpdb->get_results( "SELECT * FROM civicrm_contribution contrib INNER JOIN civicrm_contact cont on cont.id = contrib.contact_id WHERE contrib.id NOT IN (SELECT ci.contribution_id FROM civicrm_iras ci)", OBJECT );
+	$result =  $wpdb->get_results( "SELECT 
+		contrib.id, 
+		cont.sort_name, 
+		cont.external_identifier,
+		contrib.total_amount,
+		contrib.receive_date
+		FROM civicrm_contribution contrib INNER JOIN civicrm_contact cont on cont.id = contrib.contact_id WHERE contrib.id NOT IN (SELECT ci.contribution_id FROM civicrm_iras ci) AND contrib.contribution_status_id=1 AND cont.external_identifier IS NOT NULL", OBJECT );
 	$total = 0;
 	$incer = 0;
+	$genDate = date('Y-m-d H:i:s');
 	foreach($result as $val){
 		$idType = paseUENNumber($val->external_identifier);
 		// echo $idType.PHP_EOL;
 		if($idType>0){
 			// $contactDonation = $wpdb->get_results( "SELECT cc.id, cc.external_identifier, cc.sort_name FROM civicrm_contact cc WHERE cc.external_identifier is not null", OBJECT );
 			$dataBody = [1, $idType, $val->external_identifier, str_replace(',', '', $val->sort_name), null, null, null, null, null, $val->total_amount, date("Ymd", $val->receive_date), null, 'O', 'Z'];
+			
+			$sql =  "INSERT INTO civicrm_iras VALUES ($val->id,'$genDate')";
+			$wpdb->query($sql);
 			
 			array_push($csvData, $dataBody);
 
@@ -84,15 +96,24 @@ function report_offline($params)
     header('Content-Disposition: attachment; filename="report.csv";');
     fpassthru($f);
 
-	$genDate = date('Y-m-d H:i:s');
-	foreach($result as $val){
-		$result =  $wpdb->get_results( "INSERT INTO civicrm_iras VALUES ($val->id,'$genDate')", OBJECT );
-	}
 	// close the file
 	// fclose($f);
 	// wp_redirect();
 }
+function createTable(){
+	global $wpdb;
+	$result = $wpdb->get_results("SELECT ID FROM civicrm_iras");
 
+	if(count($result)==0){
+	$sql = 'CREATE TABLE `civicrm_iras` (
+		`contribution_id` int(11) NOT NULL UNIQUE,
+		`reported_date` datetime NOT NULL,
+		PRIMARY KEY (`contribution_id`)
+	  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;';
+	  require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+	  dbDelta( $sql );
+	}
+}
 function paseUENNumber($uen){
 	$idTypes =["nric"=>1, "fin"=>2, "uenb"=>5, "uenl"=>6, "asgd"=>8, "itr"=>10, "ueno"=>35 ];
 	//Uen number types
@@ -103,7 +124,7 @@ function paseUENNumber($uen){
 	// $asgd = ['ANNNNNNNC'];
 	// $itr = ['NNNNNNNNNC'];
 	// $ueno = ['TYYPQNNNNC', 'SYYPQNNNNC', 'RYYPQNNNNC'];
-
+	if($uen==null) return 0;
 	switch($uen){
 		case ($uen[0]=='S' || $uen[0]=='T') && is_numeric(substr($uen, 1, 7)):
 			return $idTypes['nric'];
