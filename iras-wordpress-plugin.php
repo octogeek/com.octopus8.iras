@@ -31,20 +31,23 @@ function report_offline($params)
 	// var_dump($result[0]->description);
 	// echo('offline'.PHP_EOL);
 	$csvData = [];
-	$dataHead = [0, 7, 2022, 7, 0, $result[0]->description,null,null,null,null,null,null,null,null];
+	$dataHead = [0, 7, date("Y"), 7, 0, $result[0]->description,null,null,null,null,null,null,null,null];
 	array_push($csvData, $dataHead);
 	
-	$result =  $wpdb->get_results( "SELECT cc.id, cc.external_identifier, cc.sort_name FROM civicrm_contact cc WHERE cc.external_identifier is not null", OBJECT );
+	// $result =  $wpdb->get_results( "SELECT cc.id, cc.external_identifier, cc.sort_name FROM civicrm_contact cc WHERE cc.external_identifier is not null", OBJECT );
+	$result =  $wpdb->get_results( "SELECT * FROM civicrm_contribution contrib INNER JOIN civicrm_contact cont on cont.id = contrib.contact_id WHERE contrib.id NOT IN (SELECT ci.contribution_id FROM civicrm_iras ci)", OBJECT );
 	$total = 0;
 	$incer = 0;
 	foreach($result as $val){
 		$idType = paseUENNumber($val->external_identifier);
-		echo $idType.PHP_EOL;
+		// echo $idType.PHP_EOL;
 		if($idType>0){
-			$dataBody = [1, $idType, $val->external_identifier, str_replace(',', '', $val->sort_name), null, null, null, null, null, 101, 20200101, null, 'O', 'Z'];
+			// $contactDonation = $wpdb->get_results( "SELECT cc.id, cc.external_identifier, cc.sort_name FROM civicrm_contact cc WHERE cc.external_identifier is not null", OBJECT );
+			$dataBody = [1, $idType, $val->external_identifier, str_replace(',', '', $val->sort_name), null, null, null, null, null, $val->total_amount, date("Ymd", $val->receive_date), null, 'O', 'Z'];
+			
 			array_push($csvData, $dataBody);
 
-			$total+=101.05;
+			$total+=$val->total_amount;
 			$incer++;
 			//$result =  $wpdb->get_results( "SELECT cc.id, cc.external_identifier FROM civicrm_contact cc WHERE cc.external_identifier is not null", OBJECT );
 		}
@@ -53,7 +56,7 @@ function report_offline($params)
 	$dataBottom = [2, $incer, $total,null,null,null,null,null,null,null,null,null,null,null];
 	array_push($csvData, $dataBottom);
 
-	echo($csvData);
+	// echo($csvData);
 	// echo paseUENNumber('S1111111C').PHP_EOL;
 	// echo paseUENNumber('F1111111C').PHP_EOL;
 	// echo paseUENNumber('11111111C').PHP_EOL;
@@ -62,22 +65,32 @@ function report_offline($params)
 	// echo paseUENNumber('111111111C').PHP_EOL;
 	// echo paseUENNumber('T00SS1111C').PHP_EOL;
 
-	$filename = dirname(__FILE__).'/stock.csv';
+	//$filename = dirname(__FILE__).'/stock.csv';
 
 	// open csv file for writing
-	$f = fopen($filename, 'w');
-	
-	if ($f === false) {
-		die('Error opening the file ' . $filename);
-	}
+	//$f = fopen($filename, 'w');
+	app_iras_output_buffer();
+	$f = fopen('php://memory', 'w'); 
+	// if ($f === false) {
+	// 	die('Error opening the file ' . $filename);
+	// }
 	
 	// write each row at a time to a file
 	foreach ($csvData as $row) {
 		fputcsv($f, $row, "," , '\'', "\\" );
 	}
-	
+	fseek($f, 0);
+	header('Content-Type: application/csv');
+    header('Content-Disposition: attachment; filename="report.csv";');
+    fpassthru($f);
+
+	$genDate = date('Y-m-d H:i:s');
+	foreach($result as $val){
+		$result =  $wpdb->get_results( "INSERT INTO civicrm_iras VALUES ($val->id,'$genDate')", OBJECT );
+	}
 	// close the file
-	fclose($f);
+	// fclose($f);
+	// wp_redirect();
 }
 
 function paseUENNumber($uen){
@@ -206,7 +219,7 @@ add_action('rest_api_init', function () {
 });
 
 add_action('rest_api_init', function () {
-	register_rest_route('iras/v1', '/report_online', array(
+	register_rest_route('iras/v1', '/report', array(
 		'methods' => 'GET',
 		'callback' => 'report_online',
 	));
@@ -216,6 +229,11 @@ wp_register_script('bootstrap-js', 'https://cdn.jsdelivr.net/npm/bootstrap@5.0.2
 wp_enqueue_script('bootstrap-js');
 wp_register_style('bootstrap-css', 'https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css');
 wp_enqueue_style('bootstrap-css');
+
+
+// SELECT * FROM civicrm_contribution contrib
+// INNER JOIN civicrm_contact cont on cont.id = contrib.contact_id
+// WHERE contrib.id NOT IN (SELECT ci.contribution_id FROM civicrm_iras ci) AND cont.external_identifier IS NOT NULL
 
 // //http://localhost/iras/wp-json/iras/v1/report_file
 // //http://localhost/iras/wp-json/myplugin/v1/author/gfsdg
